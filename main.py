@@ -1,3 +1,4 @@
+import os
 
 import os
 import sys
@@ -13,7 +14,6 @@ from dewarp.options.core import Config
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 def get_next_result_directory(output_dir):
-    # 기존 result 디렉토리 찾기
     existing_dirs = glob.glob(str(output_dir / "result*"))
     
     existing_dirs = [d for d in existing_dirs if os.path.isdir(d)]
@@ -37,33 +37,15 @@ def get_next_result_directory(output_dir):
 
 
 def apply_ocr(image_path, output_txt_path, lang='kor+eng'):
-    """
-    이미지에 OCR을 적용하여 텍스트를 추출하고 파일로 저장합니다.
-    
-    Args:
-        image_path: OCR을 적용할 이미지 파일 경로
-        output_txt_path: 추출된 텍스트를 저장할 파일 경로
-        lang: OCR 언어 설정 (기본값: 한국어+영어)
-    
-    Returns:
-        추출된 텍스트
-    """
+
     try:
         # 이미지 로드
         img = cv2.imread(str(image_path))
         if img is None:
             raise ValueError(f"이미지를 로드할 수 없습니다: {image_path}")
         
-        # 이미지 전처리 (필요시 조정)
-        # 그레이스케일 변환
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        
-        # 노이즈 제거 (필요시 주석 해제)
-        # gray = cv2.medianBlur(gray, 3)
-        
-        # 대비 향상 (필요시 주석 해제)
-        # gray = cv2.equalizeHist(gray)
-        
+
         # OCR 적용
         print(f"OCR 처리 중... ({lang})")
         text = pytesseract.image_to_string(gray, lang=lang)
@@ -95,7 +77,6 @@ def main():
     output_dir.mkdir(exist_ok=True, parents=True)
     print(f"기본 출력 디렉토리: {output_dir}")
     
-    # 결과별 디렉토리 생성 (result1, result2, ...)
     result_num = get_next_result_directory(output_dir)
     result_dir = output_dir / f"result{result_num}"
     result_dir.mkdir(exist_ok=True)
@@ -106,23 +87,19 @@ def main():
         print(f"오류: 이미지를 로드할 수 없습니다. 파일 형식이 올바른지 확인하세요 - {input_path}")
         return 1
     
-    # 이미지 정보 출력
     print(f"이미지 크기: {img.shape[1]}x{img.shape[0]}")
     
-    # 설정 객체 생성
     config = Config()
-    config.DEBUG_LEVEL = 2  # 디버그 레벨 (0-3)
-    config.DEBUG_OUTPUT = "both"  # 화면과 파일에 디버그 출력
-    config.OUTPUT_ZOOM = 1.0  # 출력 이미지 확대/축소 비율
+    config.DEBUG_LEVEL = 3  # 디버그 레벨 (0-3)
+    #config.DEBUG_OUTPUT = "both"  # 화면과 파일에 디버그 출력
+    #config.OUTPUT_ZOOM = 1.0  # 출력 이미지 확대/축소 비율
     config.NO_BINARY = False  # True: 그레이스케일 유지, False: 이진화 수행
     
     print(f"페이지 디워핑 시작: {input_path}")
     
-    # 현재 작업 디렉토리를 결과 디렉토리로 변경(결과가 여기에 저장됨)
     original_cwd = os.getcwd()
     os.chdir(result_dir)
     
-    # 이미지 로드 및 디워핑 수행
     warped_img = WarpedImage(str(input_path), config=config)
     
     if warped_img.written:
