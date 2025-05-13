@@ -43,16 +43,16 @@ class Config(Struct):
     DEBUG_OUTPUT: str = "file"
     # [edge_opts]
     EDGE_MAX_OVERLAP: desc(float, "Max reduced px horiz. overlap of contours in span",) = 1.0
-    EDGE_MAX_LENGTH: desc(float, "Max reduced px length of edge connecting contours",) = 100.0
+    EDGE_MAX_LENGTH: desc(float, "Max reduced px length of edge connecting contours",) = 150.0
     EDGE_ANGLE_COST: desc(float, "Cost of angles in edges (tradeoff vs. length)") = 10.0
-    EDGE_MAX_ANGLE: desc(float, "Maximum change in angle allowed between contours") = (7.5)
+    EDGE_MAX_ANGLE: desc(float, "Maximum change in angle allowed between contours") = (15.0)
     # [image_opts]
     SCREEN_MAX_W: desc(int, "Viewing screen max width (for resizing to screen)") = 1280
     SCREEN_MAX_H: desc(int, "Viewing screen max height (for resizing to screen)") = 700
     PAGE_MARGIN_X: desc(int, "Reduced px to ignore near L/R edge") = 10
-    PAGE_MARGIN_Y: desc(int, "Reduced px to ignore near T/B edge") = 10
+    PAGE_MARGIN_Y: desc(int, "Reduced px to ignore near T/B edge") = 5
     # [mask_opts]
-    ADAPTIVE_WINSZ: desc(int, "Window size for adaptive threshold in reduced px") = 55
+    ADAPTIVE_WINSZ: desc(int, "Window size for adaptive threshold in reduced px") = 35
     # [output_opts]
     OUTPUT_ZOOM: desc(float, "How much to zoom output relative to *original* image") = (1.0)
     OUTPUT_DPI: desc(int, "Just affects stated DPI of PNG, not appearance") = 300
