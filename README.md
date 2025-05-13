@@ -165,19 +165,3 @@ config.DEBUG_OUTPUT = "file"  # 디버그 출력 방식 ("screen", "file", "both
 config.SCREEN_MAX_W = 1280  # 최대 화면 폭
 config.SCREEN_MAX_H = 700  # 최대 화면 높이
 ```
-
-## 향후 개선 계획
-
-- 다중 이미지 일괄 처리 기능
-- GUI 인터페이스 추가
-- 더 많은 언어 지원
-- 표 구조 인식 기능 개선
-- PDF 변환 및 병합 기능
-
-## 참고
-
-이 프로젝트는 다음 기술을 활용합니다:
-- OpenCV: 이미지 처리 및 컴퓨터 비전
-- Tesseract OCR: 광학 문자 인식
-- Scipy: 최적화 및 수학적 연산
-- msgspec: 구조체 정의 및 메타데이터 관리
