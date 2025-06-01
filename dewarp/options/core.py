@@ -36,23 +36,23 @@ class Config(Struct):
     TEXT_MIN_WIDTH: desc(int, "Min reduced px width of detected text contour") = 15
     TEXT_MIN_HEIGHT: desc(int, "Min reduced px height of detected text contour") = 1
     TEXT_MIN_ASPECT: desc(float, "Filter out text contours below this w/h ratio") = 1.0
-    TEXT_MAX_THICKNESS: desc(int, "Max reduced px thickness of detected text contour",) = 20
+    TEXT_MAX_THICKNESS: desc(int, "Max reduced px thickness of detected text contour",) = 10
     # [debug_lvl_opt]
     DEBUG_LEVEL: int = 3
     # [debug_out_opt]
-    DEBUG_OUTPUT: str = "file"
+    DEBUG_OUTPUT: str = "both" #"file"
     # [edge_opts]
     EDGE_MAX_OVERLAP: desc(float, "Max reduced px horiz. overlap of contours in span",) = 1.0
     EDGE_MAX_LENGTH: desc(float, "Max reduced px length of edge connecting contours",) = 100.0
     EDGE_ANGLE_COST: desc(float, "Cost of angles in edges (tradeoff vs. length)") = 10.0
-    EDGE_MAX_ANGLE: desc(float, "Maximum change in angle allowed between contours") = (7.5)
+    EDGE_MAX_ANGLE: desc(float, "Maximum change in angle allowed between contours") = (15.0)
     # [image_opts]
     SCREEN_MAX_W: desc(int, "Viewing screen max width (for resizing to screen)") = 1280
     SCREEN_MAX_H: desc(int, "Viewing screen max height (for resizing to screen)") = 700
-    PAGE_MARGIN_X: desc(int, "Reduced px to ignore near L/R edge") = 10
-    PAGE_MARGIN_Y: desc(int, "Reduced px to ignore near T/B edge") = 10
+    PAGE_MARGIN_X: desc(int, "Reduced px to ignore near L/R edge") = 1
+    PAGE_MARGIN_Y: desc(int, "Reduced px to ignore near T/B edge") = 5
     # [mask_opts]
-    ADAPTIVE_WINSZ: desc(int, "Window size for adaptive threshold in reduced px") = 55
+    ADAPTIVE_WINSZ: desc(int, "Window size for adaptive threshold in reduced px") = 35
     # [output_opts]
     OUTPUT_ZOOM: desc(float, "How much to zoom output relative to *original* image") = (1.0)
     OUTPUT_DPI: desc(int, "Just affects stated DPI of PNG, not appearance") = 300

@@ -4,15 +4,19 @@ import glob
 from pathlib import Path
 import cv2
 import shutil
+import argparse
+
 import pytesseract
 from dewarp.image import WarpedImage
 from dewarp.options.core import Config
 
 #윈도우 teesract 경로
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+#mac teesract 경로
+pytesseract.pytesseract.tesseract_cmd = r"/opt/homebrew/Cellar/tesseract/5.5.1/bin/tesseract"
 
-def get_next_result_directory(output_dir):
-    existing_dirs = glob.glob(str(output_dir / "result*"))
+def get_next_result_directory(output_dir, output_name):
+    existing_dirs = glob.glob(str(output_dir / f"{output_name}*"))
     
     filtered_dirs = []
     for d in existing_dirs:
@@ -26,7 +30,7 @@ def get_next_result_directory(output_dir):
     for dir_path in filtered_dirs:
         dir_name = os.path.basename(dir_path)
         try:
-            num = int(dir_name.replace("result", ""))
+            num = int(dir_name.replace(output_name, ""))
             numbers.append(num)
         except ValueError:
             continue
@@ -159,9 +163,15 @@ def apply_ocr_with_debug(image_path, output_dir, lang='kor+eng'):
         return None, None
 
 
-def main():
-    input_file = "./input/image.png"
-    output_dir = "./output"
+def main(
+    input_dir = "./input/image.png",
+    output_dir = "./output",
+    output_name = "result",
+):
+    
+    input_file = input_dir
+    output_dir = output_dir
+    output_name = output_name
     
     input_path = Path(input_file).resolve()
     
@@ -171,9 +181,10 @@ def main():
     
     output_dir = Path(output_dir).resolve()
     output_dir.mkdir(exist_ok=True, parents=True)
-    
-    result_num = get_next_result_directory(output_dir)
-    result_dir = output_dir / f"result{result_num}"
+
+    result_num = get_next_result_directory(output_dir=output_dir, output_name=output_name)
+    print(f"result_num: {result_num}")
+    result_dir = output_dir / f"{output_name}{result_num}"
     result_dir.mkdir(exist_ok=True)
     
     img = cv2.imread(str(input_path))
@@ -188,7 +199,6 @@ def main():
     #config.DEBUG_OUTPUT = "both"  # 화면과 파일에 디버그 출력
     #config.OUTPUT_ZOOM = 1.0  # 출력 이미지 확대/축소 비율
     config.NO_BINARY = False  # True: 그레이스케일 유지, False: 이진화 수행
-    
     
     original_cwd = os.getcwd()
     os.chdir(result_dir)
@@ -223,6 +233,16 @@ def main():
     print(f"처리 완료")
     return 0
 
-
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input-dir", type=str, default="./input/image.png")
+    parser.add_argument("--output-dir", type=str, default="./output")
+    parser.add_argument("--output-name", type=str, default="result")
+    opt = parser.parse_args()
+    print(opt)
+    return opt
+    
 if __name__ == "__main__":
-    sys.exit(main())
+    opt = parse_args()
+    main(**vars(opt))
+    #sys.exit(main())
