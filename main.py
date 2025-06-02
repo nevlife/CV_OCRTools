@@ -13,7 +13,7 @@ from dewarp.options.core import Config
 #윈도우 teesract 경로
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 #mac teesract 경로
-pytesseract.pytesseract.tesseract_cmd = r"/opt/homebrew/Cellar/tesseract/5.5.1/bin/tesseract"
+#pytesseract.pytesseract.tesseract_cmd = r"/opt/homebrew/Cellar/tesseract/5.5.1/bin/tesseract"
 
 def get_next_result_directory(output_dir, output_name):
     existing_dirs = glob.glob(str(output_dir / f"{output_name}*"))
@@ -41,8 +41,8 @@ def get_next_result_directory(output_dir, output_name):
     return max(numbers) + 1
 
 
-def apply_ocr_with_debug(image_path, output_dir, lang='eng+kor'):
-
+def perform_ocr(image_path, output_dir, lang='kor+eng', oem=2, psm=6):
+    config = f'--oem {oem} --psm {psm}'
     try:
         img = cv2.imread(str(image_path))
         if img is None:
@@ -73,7 +73,7 @@ def apply_ocr_with_debug(image_path, output_dir, lang='eng+kor'):
         
         # Tesseract 페이지 분할 시각화
         # 6. 페이지 분석 결과 시각화 (시각화용 이미지 생성)
-        page_img = img.copy()
+        #page_img = img.copy()
         
         # Tesseract의 --psm 옵션 설명
         # 1: 자동 페이지 분할, OSD 적용
@@ -81,8 +81,12 @@ def apply_ocr_with_debug(image_path, output_dir, lang='eng+kor'):
         # 11: 텍스트 블록으로 취급, OSD 없음
         
         # 7. Tesseract 데이터 추출 (블록, 단락, 라인, 단어, 문자 정보)
-        data = pytesseract.image_to_data(enhanced, lang=lang, output_type=pytesseract.Output.DICT)
-        
+        data = pytesseract.image_to_data(
+            enhanced, 
+            lang=lang, 
+            output_type=pytesseract.Output.DICT,
+            config=config  # LSTM 모델 사용 및 단일 텍스트 블록으로 처리
+        )
         # 8. 텍스트 블록 시각화
         blocks_img = img.copy()
         n_boxes = len(data['level'])
@@ -140,8 +144,11 @@ def apply_ocr_with_debug(image_path, output_dir, lang='eng+kor'):
         cv2.imwrite(str(debug_dir / "9_recognized_text.png"), symbols_img)
         
         
-        text = pytesseract.image_to_string(enhanced, lang=lang)
-        
+        text = pytesseract.image_to_string(
+            enhanced, 
+            lang=lang,
+            config=config  # LSTM 모델 사용 및 단일 텍스트 블록으로 처리
+        )
         # 텍스트 파일 저장
         output_txt_path = Path(output_dir) / "ocr_result.txt"
         with open(output_txt_path, 'w', encoding='utf-8') as f:
@@ -149,7 +156,12 @@ def apply_ocr_with_debug(image_path, output_dir, lang='eng+kor'):
         
         # HTML 포맷?의 OCR 결과
         hocr_output = Path(output_dir) / "ocr_result.html"
-        hocr_data = pytesseract.image_to_pdf_or_hocr(enhanced, extension='hocr', lang=lang)
+        hocr_data = pytesseract.image_to_pdf_or_hocr(
+            enhanced, 
+            extension='hocr', 
+            lang=lang,
+            config=config  # LSTM 모델 사용
+        )
         with open(hocr_output, 'wb') as f:
             f.write(hocr_data)
             
@@ -174,18 +186,18 @@ def main(
     debug=3,  # 디버그 레벨 0 ~ 3
     debug_out="both",  # 디버그 출력 방식: "file", "screen", "both"
     eo=1.0,  # 스팬 내에서 윤곽선들의 최대 수평 겹침 (축소된 픽셀 단위)
-    el=150.0,  # 윤곽선들을 연결하는 에지의 최대 길이 (축소된 픽셀 단위)
+    el=100.0,  # 윤곽선들을 연결하는 에지의 최대 길이 (축소된 픽셀 단위)
     ec=10.0,  # 에지의 각도 변화에 대한 비용 (길이 대비 각도의 가중치)
-    ea=15.0,  # 윤곽선들 사이에서 허용되는 최대 각도 변화 (도 단위)
+    ea=7.5,  # 윤곽선들 사이에서 허용되는 최대 각도 변화 (도 단위)
     sw=1280,  # 화면 표시용 최대 폭 (픽셀)
     sh=700,  # 화면 표시용 최대 높이 (픽셀)
-    mx=10,  # 좌우 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
-    my=5,  # 상하 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
-    wz=35,  # 적응형 임계값 처리에 사용할 윈도우 크기 (축소된 픽셀 단위)
+    mx=50,  # 좌우 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
+    my=20,  # 상하 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
+    wz=55,  # 적응형 임계값 처리에 사용할 윈도우 크기 (축소된 픽셀 단위)
     zoom=1.0,  # 원본 이미지 대비 출력 이미지의 확대율
     dpi=300,  # PNG 파일의 명시적 DPI 값 (메타데이터만)
     decimate=16,  # 이미지 리매핑 시 다운스케일링 인수
-    no_bin=False,  # True: 그레이스케일 유지, False: 이진화 수행
+    no_bin=0,  # True: 그레이스케일 유지, False: 이진화 수행
     pdf=False,  # 처리된 이미지들을 PDF로 병합 여부 (미구현)
     rv_idx=(0,3),  # 매개변수 벡터에서 회전 벡터(rvec)의 인덱스 범위
     tv_idx=(3,6),  # 매개변수 벡터에서 이동 벡터(tvec)의 인덱스 범위
@@ -263,7 +275,7 @@ def main(
         
         # OCR 적용
         result_img_path = result_dir / warped_img.outfile
-        ocr_text, debug_dir = apply_ocr_with_debug(result_img_path, result_dir)
+        ocr_text, debug_dir = perform_ocr(result_img_path, result_dir)
 
         result = cv2.imread(str(warped_img.outfile))
         
@@ -284,74 +296,45 @@ def main(
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--input", "-i", type=str, default="./input/test2.jpg", 
-                        help="input: 입력 이미지 파일 경로")
-    parser.add_argument("--output", "-o", type=str, default="./output", 
-                        help="output: 출력 디렉토리")
-    parser.add_argument("--name", "-n", type=str, default="result", 
-                        help="name: 결과 폴더명 접두사")
+    parser.add_argument("--input", "-i", type=str, default="./input/test1.jpg", help="input: 입력 이미지 파일 경로")
+    parser.add_argument("--output", "-o", type=str, default="./output", help="output: 출력 디렉토리")
+    parser.add_argument("--name", "-n", type=str, default="result", help="name: 결과 폴더명 접두사")
     
-    parser.add_argument("--focal", "-f", type=float, default=1.2, 
-                        help="focal_length: 카메라의 정규화된 초점거리")
+    parser.add_argument("--focal", "-f", type=float, default=1.2, help="focal_length: 카메라의 정규화된 초점거리")
     
-    parser.add_argument("--tw", type=int, default=15, 
-                        help="text_min_width: 텍스트 윤곽선 최소 폭 (픽셀)")
-    parser.add_argument("--th", type=int, default=2, 
-                        help="text_min_height: 텍스트 윤곽선 최소 높이 (픽셀)")
-    parser.add_argument("--ta", type=float, default=1.5, 
-                        help="text_min_aspect: 텍스트 최소 가로세로 비율")
-    parser.add_argument("--tk", type=int, default=10, 
-                        help="text_max_thickness: 텍스트 최대 두께 (픽셀)")
+    parser.add_argument("--tw", type=int, default=15, help="text_min_width: 텍스트 윤곽선 최소 폭 (픽셀)")
+    parser.add_argument("--th", type=int, default=2, help="text_min_height: 텍스트 윤곽선 최소 높이 (픽셀)")
+    parser.add_argument("--ta", type=float, default=1.5, help="text_min_aspect: 텍스트 최소 가로세로 비율")
+    parser.add_argument("--tk", type=int, default=10, help="text_max_thickness: 텍스트 최대 두께 (픽셀)")
 
-    parser.add_argument("--debug", "-d", type=int, default=3, choices=[0, 1, 2, 3], 
-                        help="debug_level: 디버그 레벨 (0=없음, 1=기본, 2=중간, 3=상세)")
-    parser.add_argument("--debug-out", type=str, default="both", choices=["file", "screen", "both"], 
-                        help="debug_output: 디버그 출력 방식")
+    parser.add_argument("--debug", "-d", type=int, default=3, choices=[0, 1, 2, 3], help="debug_level: 디버그 레벨 (0=없음, 1=기본, 2=중간, 3=상세)")
+    parser.add_argument("--debug-out", type=str, default="both", choices=["file", "screen", "both"], help="debug_output: 디버그 출력 방식")
 
-    parser.add_argument("--eo", type=float, default=1.0, 
-                        help="edge_max_overlap: 윤곽선 최대 수평 겹침 (픽셀)")
-    parser.add_argument("--el", type=float, default=150.0, 
-                        help="edge_max_length: 에지 최대 연결 길이 (픽셀)")
-    parser.add_argument("--ec", type=float, default=10.0, 
-                        help="edge_angle_cost: 에지 각도 변화 비용 계수")
-    parser.add_argument("--ea", type=float, default=15.0, 
-                        help="edge_max_angle: 허용 최대 각도 변화 (도)")
+    parser.add_argument("--eo", type=float, default=1.0, help="edge_max_overlap: 윤곽선 최대 수평 겹침 (픽셀)")
+    parser.add_argument("--el", type=float, default=150.0, help="edge_max_length: 에지 최대 연결 길이 (픽셀)")
+    parser.add_argument("--ec", type=float, default=10.0, help="edge_angle_cost: 에지 각도 변화 비용 계수")
+    parser.add_argument("--ea", type=float, default=15.0, help="edge_max_angle: 허용 최대 각도 변화 (도)")
     
-    parser.add_argument("--sw", type=int, default=1280, 
-                        help="screen_max_w: 화면 표시용 최대 폭 (픽셀)")
-    parser.add_argument("--sh", type=int, default=700, 
-                        help="screen_max_h: 화면 표시용 최대 높이 (픽셀)")
-    parser.add_argument("--mx", type=int, default=10, 
-                        help="page_margin_x: 좌우 가장자리 무시 영역 (픽셀)")
-    parser.add_argument("--my", type=int, default=5, 
-                        help="page_margin_y: 상하 가장자리 무시 영역 (픽셀)")
+    parser.add_argument("--sw", type=int, default=1280, help="screen_max_w: 화면 표시용 최대 폭 (픽셀)")
+    parser.add_argument("--sh", type=int, default=700, help="screen_max_h: 화면 표시용 최대 높이 (픽셀)")
+    parser.add_argument("--mx", type=int, default=10, help="page_margin_x: 좌우 가장자리 무시 영역 (픽셀)")
+    parser.add_argument("--my", type=int, default=5, help="page_margin_y: 상하 가장자리 무시 영역 (픽셀)")
     
-    parser.add_argument("--wz", type=int, default=35, 
-                        help="adaptive_winsz: 적응형 임계값 윈도우 크기 (픽셀)")
+    parser.add_argument("--wz", type=int, default=35, help="adaptive_winsz: 적응형 임계값 윈도우 크기 (픽셀)")
     
-    parser.add_argument("--zoom", "-z", type=float, default=1.0, 
-                        help="output_zoom: 출력 이미지 확대/축소 비율")
-    parser.add_argument("--dpi", type=int, default=300, 
-                        help="output_dpi: PNG 파일 DPI 메타데이터")
-    parser.add_argument("--decimate", type=int, default=16, 
-                        help="remap_decimate: 리매핑시 다운스케일링 인수")
-    parser.add_argument("--no-bin", action="store_true", 
-                        help="no_binary: 이진화 비활성화 (그레이스케일 유지)")
+    parser.add_argument("--zoom", "-z", type=float, default=1.0, help="output_zoom: 출력 이미지 확대/축소 비율")
+    parser.add_argument("--dpi", type=int, default=300, help="output_dpi: PNG 파일 DPI 메타데이터")
+    parser.add_argument("--decimate", type=int, default=16, help="remap_decimate: 리매핑시 다운스케일링 인수")
+    parser.add_argument("--no-bin", type=int, default=0, help="no_binary: 이진화 비활성화 (그레이스케일 유지)")
     
-    parser.add_argument("--pdf", "-p", action="store_true", 
-                        help="convert_to_pdf: 결과를 PDF로 변환 (미구현)")
+    parser.add_argument("--pdf", "-p", action="store_true", help="convert_to_pdf: 결과를 PDF로 변환 (미구현)")
     
-    parser.add_argument("--rv-idx", type=int, nargs=2, default=[0, 3],
-                    help="rvec_idx: 회전벡터 매개변수 인덱스 범위 (시작, 끝)")
-    parser.add_argument("--tv-idx", type=int, nargs=2, default=[3, 6],
-                        help="tvec_idx: 이동벡터 매개변수 인덱스 범위 (시작, 끝)")
-    parser.add_argument("--cv-idx", type=int, nargs=2, default=[6, 8],
-                        help="cubic_idx: 큐빅 기울기 인덱스 범위 (시작, 끝)")
+    parser.add_argument("--rv-idx", type=int, nargs=2, default=[0, 3], help="rvec_idx: 회전벡터 매개변수 인덱스 범위 (시작, 끝)")
+    parser.add_argument("--tv-idx", type=int, nargs=2, default=[3, 6], help="tvec_idx: 이동벡터 매개변수 인덱스 범위 (시작, 끝)")
+    parser.add_argument("--cv-idx", type=int, nargs=2, default=[6, 8], help="cubic_idx: 큐빅 기울기 인덱스 범위 (시작, 끝)")
 
-    parser.add_argument("--span-w", type=int, default=30, 
-                        help="span_min_width: 스팬의 최소 폭 (픽셀)")
-    parser.add_argument("--span-step", type=int, default=20, 
-                        help="span_px_per_step: 스팬 샘플링 간격 (픽셀)")
+    parser.add_argument("--span-w", type=int, default=30, help="span_min_width: 스팬의 최소 폭 (픽셀)")
+    parser.add_argument("--span-step", type=int, default=20, help="span_px_per_step: 스팬 샘플링 간격 (픽셀)")
     
     opt = parser.parse_args()
     print(opt)
