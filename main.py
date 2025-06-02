@@ -41,7 +41,7 @@ def get_next_result_directory(output_dir, output_name):
     return max(numbers) + 1
 
 
-def apply_ocr_with_debug(image_path, output_dir, lang='kor+eng'):
+def apply_ocr_with_debug(image_path, output_dir, lang='eng+kor'):
 
     try:
         img = cv2.imread(str(image_path))
@@ -162,28 +162,48 @@ def apply_ocr_with_debug(image_path, output_dir, lang='kor+eng'):
         print(f"OCR 처리 중 오류 발생: {e}")
         return None, None
 
-
 def main(
-    input_dir = "./input/image.png",
-    output_dir = "./output",
-    output_name = "result",
-):
-    
-    input_file = input_dir
-    output_dir = output_dir
-    output_name = output_name
-    
-    input_path = Path(input_file).resolve()
+    input="./input/image.png",  # 입력 이미지 파일 경로
+    output="./output",  # 출력 디렉토리 경로
+    name="result",  # 결과 폴더 이름
+    focal=1.2,  # 카메라의 정규화된 초점거리
+    tw=15,  # 검출할 텍스트 윤곽선의 최소 폭 (축소된 픽셀 단위)
+    th=2,  # 검출할 텍스트 윤곽선의 최소 높이 (축소된 픽셀 단위)
+    ta=1.5,  # 텍스트 윤곽선의 최소 가로세로 비율 (폭/높이)
+    tk=10,  # 검출할 텍스트 윤곽선의 최대 두께 (축소된 픽셀 단위)
+    debug=3,  # 디버그 레벨 0 ~ 3
+    debug_out="both",  # 디버그 출력 방식: "file", "screen", "both"
+    eo=1.0,  # 스팬 내에서 윤곽선들의 최대 수평 겹침 (축소된 픽셀 단위)
+    el=150.0,  # 윤곽선들을 연결하는 에지의 최대 길이 (축소된 픽셀 단위)
+    ec=10.0,  # 에지의 각도 변화에 대한 비용 (길이 대비 각도의 가중치)
+    ea=15.0,  # 윤곽선들 사이에서 허용되는 최대 각도 변화 (도 단위)
+    sw=1280,  # 화면 표시용 최대 폭 (픽셀)
+    sh=700,  # 화면 표시용 최대 높이 (픽셀)
+    mx=10,  # 좌우 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
+    my=5,  # 상하 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
+    wz=35,  # 적응형 임계값 처리에 사용할 윈도우 크기 (축소된 픽셀 단위)
+    zoom=1.0,  # 원본 이미지 대비 출력 이미지의 확대율
+    dpi=300,  # PNG 파일의 명시적 DPI 값 (메타데이터만)
+    decimate=16,  # 이미지 리매핑 시 다운스케일링 인수
+    no_bin=False,  # True: 그레이스케일 유지, False: 이진화 수행
+    pdf=False,  # 처리된 이미지들을 PDF로 병합 여부 (미구현)
+    rv_idx=(0,3),  # 매개변수 벡터에서 회전 벡터(rvec)의 인덱스 범위
+    tv_idx=(3,6),  # 매개변수 벡터에서 이동 벡터(tvec)의 인덱스 범위
+    cv_idx=(6,8),  # 매개변수 벡터에서 큐빅 기울기의 인덱스 범위
+    span_w=30,  # 스팬의 최소 폭 (축소된 픽셀 단위)
+    span_step=20,  # 스팬을 따라 샘플링할 때의 픽셀 간격 (축소된 픽셀 단위)
+):    
+        
+    input_path = Path(input).resolve()
+    output_dir = Path(output).resolve()
+    output_name = name
     
     if not input_path.exists():
         print(f"파일 못 찾음: {input_path}")
         return 1
     
-    output_dir = Path(output_dir).resolve()
     output_dir.mkdir(exist_ok=True, parents=True)
-
     result_num = get_next_result_directory(output_dir=output_dir, output_name=output_name)
-    print(f"result_num: {result_num}")
     result_dir = output_dir / f"{output_name}{result_num}"
     result_dir.mkdir(exist_ok=True)
     
@@ -195,10 +215,42 @@ def main(
     print(f"이미지 크기: {img.shape[1]}x{img.shape[0]}")
     
     config = Config()
-    config.DEBUG_LEVEL = 3  # 디버그 레벨 0 ~ 3
-    #config.DEBUG_OUTPUT = "both"  # 화면과 파일에 디버그 출력
-    #config.OUTPUT_ZOOM = 1.0  # 출력 이미지 확대/축소 비율
-    config.NO_BINARY = False  # True: 그레이스케일 유지, False: 이진화 수행
+    config.FOCAL_LENGTH = focal  # 카메라의 정규화된 초점거리
+
+    config.TEXT_MIN_WIDTH = tw  # 검출할 텍스트 윤곽선의 최소 폭 (축소된 픽셀 단위)
+    config.TEXT_MIN_HEIGHT = th  # 검출할 텍스트 윤곽선의 최소 높이 (축소된 픽셀 단위)
+    config.TEXT_MIN_ASPECT = ta  # 텍스트 윤곽선의 최소 가로세로 비율 (폭/높이)
+    config.TEXT_MAX_THICKNESS = tk  # 검출할 텍스트 윤곽선의 최대 두께 (축소된 픽셀 단위)
+
+    config.DEBUG_LEVEL = debug  # 디버그 레벨 0 ~ 3
+    config.DEBUG_OUTPUT = debug_out  # 디버그 출력 방식: "file", "screen", "both"
+
+    config.EDGE_MAX_OVERLAP = eo  # 스팬 내에서 윤곽선들의 최대 수평 겹침 (축소된 픽셀 단위)
+    config.EDGE_MAX_LENGTH = el  # 윤곽선들을 연결하는 에지의 최대 길이 (축소된 픽셀 단위)
+    config.EDGE_ANGLE_COST = ec  # 에지의 각도 변화에 대한 비용 (길이 대비 각도의 가중치)
+    config.EDGE_MAX_ANGLE = ea  # 윤곽선들 사이에서 허용되는 최대 각도 변화 (도 단위)
+
+    config.SCREEN_MAX_W = sw  # 화면 표시용 최대 폭 (픽셀)
+    config.SCREEN_MAX_H = sh  # 화면 표시용 최대 높이 (픽셀)
+    config.PAGE_MARGIN_X = mx  # 좌우 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
+    config.PAGE_MARGIN_Y = my  # 상하 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
+
+    config.ADAPTIVE_WINSZ = wz  # 적응형 임계값 처리에 사용할 윈도우 크기 (축소된 픽셀 단위)
+
+    config.OUTPUT_ZOOM = zoom  # 원본 이미지 대비 출력 이미지의 확대율
+    config.OUTPUT_DPI = dpi  # PNG 파일의 명시적 DPI 값 (메타데이터만)
+    config.REMAP_DECIMATE = decimate  # 이미지 리매핑 시 다운스케일링 인수
+    config.NO_BINARY = no_bin  # True: 그레이스케일 유지, False: 이진화 수행
+
+    config.CONVERT_TO_PDF = pdf  # 처리된 이미지들을 PDF로 병합 여부 (미구현)
+
+    config.RVEC_IDX = rv_idx  # 매개변수 벡터에서 회전 벡터(rvec)의 인덱스 범위
+    config.TVEC_IDX = tv_idx  # 매개변수 벡터에서 이동 벡터(tvec)의 인덱스 범위
+    config.CUBIC_IDX = cv_idx  # 매개변수 벡터에서 큐빅 기울기의 인덱스 범위
+
+    config.SPAN_MIN_WIDTH = span_w  # 스팬의 최소 폭 (축소된 픽셀 단위)
+    config.SPAN_PX_PER_STEP = span_step  # 스팬을 따라 샘플링할 때의 픽셀 간격 (축소된 픽셀 단위)
+
     
     original_cwd = os.getcwd()
     os.chdir(result_dir)
@@ -212,22 +264,18 @@ def main(
         # OCR 적용
         result_img_path = result_dir / warped_img.outfile
         ocr_text, debug_dir = apply_ocr_with_debug(result_img_path, result_dir)
-        
-        # 결과 시각화
+
         result = cv2.imread(str(warped_img.outfile))
         
-        window_name = f"result{result_num}"
+        window_name = f"result"
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.imshow(window_name, result)
-        
-        print("아무 키나 누르면 창이 닫힙니다...")
         
         cv2.waitKey(0)
         cv2.destroyAllWindows()
     else:
         print("디워핑 처리가 실패. 텍스트 또는 라인이 충분히 감지되지 않음.")
-    
-    # 원래 작업 디렉토리로 복원
+        
     os.chdir(original_cwd)
     
     print(f"처리 완료")
@@ -235,13 +283,80 @@ def main(
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--input-dir", type=str, default="./input/image.png")
-    parser.add_argument("--output-dir", type=str, default="./output")
-    parser.add_argument("--output-name", type=str, default="result")
+
+    parser.add_argument("--input", "-i", type=str, default="./input/test2.jpg", 
+                        help="input: 입력 이미지 파일 경로")
+    parser.add_argument("--output", "-o", type=str, default="./output", 
+                        help="output: 출력 디렉토리")
+    parser.add_argument("--name", "-n", type=str, default="result", 
+                        help="name: 결과 폴더명 접두사")
+    
+    parser.add_argument("--focal", "-f", type=float, default=1.2, 
+                        help="focal_length: 카메라의 정규화된 초점거리")
+    
+    parser.add_argument("--tw", type=int, default=15, 
+                        help="text_min_width: 텍스트 윤곽선 최소 폭 (픽셀)")
+    parser.add_argument("--th", type=int, default=2, 
+                        help="text_min_height: 텍스트 윤곽선 최소 높이 (픽셀)")
+    parser.add_argument("--ta", type=float, default=1.5, 
+                        help="text_min_aspect: 텍스트 최소 가로세로 비율")
+    parser.add_argument("--tk", type=int, default=10, 
+                        help="text_max_thickness: 텍스트 최대 두께 (픽셀)")
+
+    parser.add_argument("--debug", "-d", type=int, default=3, choices=[0, 1, 2, 3], 
+                        help="debug_level: 디버그 레벨 (0=없음, 1=기본, 2=중간, 3=상세)")
+    parser.add_argument("--debug-out", type=str, default="both", choices=["file", "screen", "both"], 
+                        help="debug_output: 디버그 출력 방식")
+
+    parser.add_argument("--eo", type=float, default=1.0, 
+                        help="edge_max_overlap: 윤곽선 최대 수평 겹침 (픽셀)")
+    parser.add_argument("--el", type=float, default=150.0, 
+                        help="edge_max_length: 에지 최대 연결 길이 (픽셀)")
+    parser.add_argument("--ec", type=float, default=10.0, 
+                        help="edge_angle_cost: 에지 각도 변화 비용 계수")
+    parser.add_argument("--ea", type=float, default=15.0, 
+                        help="edge_max_angle: 허용 최대 각도 변화 (도)")
+    
+    parser.add_argument("--sw", type=int, default=1280, 
+                        help="screen_max_w: 화면 표시용 최대 폭 (픽셀)")
+    parser.add_argument("--sh", type=int, default=700, 
+                        help="screen_max_h: 화면 표시용 최대 높이 (픽셀)")
+    parser.add_argument("--mx", type=int, default=10, 
+                        help="page_margin_x: 좌우 가장자리 무시 영역 (픽셀)")
+    parser.add_argument("--my", type=int, default=5, 
+                        help="page_margin_y: 상하 가장자리 무시 영역 (픽셀)")
+    
+    parser.add_argument("--wz", type=int, default=35, 
+                        help="adaptive_winsz: 적응형 임계값 윈도우 크기 (픽셀)")
+    
+    parser.add_argument("--zoom", "-z", type=float, default=1.0, 
+                        help="output_zoom: 출력 이미지 확대/축소 비율")
+    parser.add_argument("--dpi", type=int, default=300, 
+                        help="output_dpi: PNG 파일 DPI 메타데이터")
+    parser.add_argument("--decimate", type=int, default=16, 
+                        help="remap_decimate: 리매핑시 다운스케일링 인수")
+    parser.add_argument("--no-bin", action="store_true", 
+                        help="no_binary: 이진화 비활성화 (그레이스케일 유지)")
+    
+    parser.add_argument("--pdf", "-p", action="store_true", 
+                        help="convert_to_pdf: 결과를 PDF로 변환 (미구현)")
+    
+    parser.add_argument("--rv-idx", type=int, nargs=2, default=[0, 3],
+                    help="rvec_idx: 회전벡터 매개변수 인덱스 범위 (시작, 끝)")
+    parser.add_argument("--tv-idx", type=int, nargs=2, default=[3, 6],
+                        help="tvec_idx: 이동벡터 매개변수 인덱스 범위 (시작, 끝)")
+    parser.add_argument("--cv-idx", type=int, nargs=2, default=[6, 8],
+                        help="cubic_idx: 큐빅 기울기 인덱스 범위 (시작, 끝)")
+
+    parser.add_argument("--span-w", type=int, default=30, 
+                        help="span_min_width: 스팬의 최소 폭 (픽셀)")
+    parser.add_argument("--span-step", type=int, default=20, 
+                        help="span_px_per_step: 스팬 샘플링 간격 (픽셀)")
+    
     opt = parser.parse_args()
     print(opt)
     return opt
-    
+
 if __name__ == "__main__":
     opt = parse_args()
     main(**vars(opt))
