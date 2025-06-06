@@ -41,35 +41,37 @@ def get_next_result_directory(output_dir, output_name):
     return max(numbers) + 1
 
 
-def perform_ocr(image_path, output_dir, lang='kor+eng', oem=2, psm=6):
+def perform_ocr(image_path, output_dir, lang='kor+eng', oem=1, psm=3, debug=False):
     config = f'--oem {oem} --psm {psm}'
     try:
         img = cv2.imread(str(image_path))
         if img is None:
-            raise ValueError(f"이미지를 로드할 수 없습니다: {image_path}")
+            raise ValueError(f"image not found: {image_path}")
         
-        debug_dir = Path(output_dir) / "ocr_debug"
-        debug_dir.mkdir(exist_ok=True)
+        if debug:
+            debug_dir = Path(output_dir) / "ocr_debug"
+            debug_dir.mkdir(exist_ok=True)
+        else:
+            debug_dir = None
+        # # 1. 원본 이미지 저장
+        # cv2.imwrite(str(debug_dir / "1_original.png"), img)
         
-        # 1. 원본 이미지 저장
-        cv2.imwrite(str(debug_dir / "1_original.png"), img)
+        # # 2. 그레이스케일 변환
+        # gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # cv2.imwrite(str(debug_dir / "2_grayscale.png"), gray)
         
-        # 2. 그레이스케일 변환
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        cv2.imwrite(str(debug_dir / "2_grayscale.png"), gray)
+        # # 3. 노이즈 제거
+        # denoised = cv2.fastNlMeansDenoising(gray, None, 10, 7, 21)
+        # cv2.imwrite(str(debug_dir / "3_denoised.png"), denoised)
         
-        # 3. 노이즈 제거
-        denoised = cv2.fastNlMeansDenoising(gray, None, 10, 7, 21)
-        cv2.imwrite(str(debug_dir / "3_denoised.png"), denoised)
+        # # 4. 대비 향상
+        # clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        # enhanced = clahe.apply(denoised)
+        # cv2.imwrite(str(debug_dir / "4_contrast_enhanced.png"), enhanced)
         
-        # 4. 대비 향상
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        enhanced = clahe.apply(denoised)
-        cv2.imwrite(str(debug_dir / "4_contrast_enhanced.png"), enhanced)
-        
-        # 5. 이진화
-        _, binary = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        cv2.imwrite(str(debug_dir / "5_binary.png"), binary)
+        # # 5. 이진화
+        # _, binary = cv2.threshold(enhanced, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        # cv2.imwrite(str(debug_dir / "5_binary.png"), binary)
         
         # Tesseract 페이지 분할 시각화
         # 6. 페이지 분석 결과 시각화 (시각화용 이미지 생성)
@@ -82,70 +84,72 @@ def perform_ocr(image_path, output_dir, lang='kor+eng', oem=2, psm=6):
         
         # 7. Tesseract 데이터 추출 (블록, 단락, 라인, 단어, 문자 정보)
         data = pytesseract.image_to_data(
-            enhanced, 
+            img, 
             lang=lang, 
             output_type=pytesseract.Output.DICT,
             config=config  # LSTM 모델 사용 및 단일 텍스트 블록으로 처리
         )
-        # 8. 텍스트 블록 시각화
-        blocks_img = img.copy()
-        n_boxes = len(data['level'])
         
-        
-        for i in range(n_boxes):
-            level = data['level'][i]
-            # 레벨 1: 페이지, 2: 블록, 3: 단락, 4: 라인, 5: 단어
+        if debug:
+            # 8. 텍스트 블록 시각화
+            blocks_img = img.copy()
+            n_boxes = len(data['level'])
             
-            x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
-        
-            if level == 2:
-                cv2.rectangle(blocks_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
             
-        cv2.imwrite(str(debug_dir / "6_text_blocks.png"), blocks_img)
-        
-        # 9. 텍스트 라인 시각화
-        lines_img = img.copy()
-        for i in range(n_boxes):
-            level = data['level'][i]
-            x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
-            
-            if level == 4:
-                cv2.rectangle(lines_img, (x, y), (x + w, y + h), (0, 0, 255), 1)
-                # 기준선 표시 (라인의 약 3/4 지점)
-                baseline_y = y + int(h * 0.75)
-                cv2.line(lines_img, (x, baseline_y), (x + w, baseline_y), (255, 0, 0), 1)
+            for i in range(n_boxes):
+                level = data['level'][i]
+                # 레벨 1: 페이지, 2: 블록, 3: 단락, 4: 라인, 5: 단어
                 
-        cv2.imwrite(str(debug_dir / "7_text_lines.png"), lines_img)
-        
-        # 10. 단어 시각화
-        words_img = img.copy()
-        for i in range(n_boxes):
-            level = data['level'][i]
-            x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
+                x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
             
-            if level == 5:
-                cv2.rectangle(words_img, (x, y), (x + w, y + h), (0, 255, 255), 1)
+                if level == 2:
+                    cv2.rectangle(blocks_img, (x, y), (x + w, y + h), (0, 255, 0), 2)
                 
-        cv2.imwrite(str(debug_dir / "8_words.png"), words_img)
-        
-        # 11. 특수 문자 인식 결과 시각화
-        symbols_img = img.copy()
-        
-        # 신뢰도가 높은 단어만
-        for i in range(n_boxes):
-            level = data['level'][i]
-            text = data['text'][i]
-            conf = int(data['conf'][i])
-            x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
+            cv2.imwrite(str(debug_dir / "6_text_blocks.png"), blocks_img)
             
-            if level == 5 and text and conf > 60:  # 신뢰도 60% 이상만만
-                cv2.putText(symbols_img, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+            # 9. 텍스트 라인 시각화
+            lines_img = img.copy()
+            for i in range(n_boxes):
+                level = data['level'][i]
+                x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
                 
-        cv2.imwrite(str(debug_dir / "9_recognized_text.png"), symbols_img)
-        
+                if level == 4:
+                    cv2.rectangle(lines_img, (x, y), (x + w, y + h), (0, 0, 255), 1)
+                    # 기준선 표시 (라인의 약 3/4 지점)
+                    baseline_y = y + int(h * 0.75)
+                    cv2.line(lines_img, (x, baseline_y), (x + w, baseline_y), (255, 0, 0), 1)
+                    
+            cv2.imwrite(str(debug_dir / "7_text_lines.png"), lines_img)
+            
+            # 10. 단어 시각화
+            words_img = img.copy()
+            for i in range(n_boxes):
+                level = data['level'][i]
+                x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
+                
+                if level == 5:
+                    cv2.rectangle(words_img, (x, y), (x + w, y + h), (0, 255, 255), 1)
+                    
+            cv2.imwrite(str(debug_dir / "8_words.png"), words_img)
+            
+            # 11. 특수 문자 인식 결과 시각화
+            symbols_img = img.copy()
+            
+            # 신뢰도가 높은 단어만
+            for i in range(n_boxes):
+                level = data['level'][i]
+                text = data['text'][i]
+                conf = int(data['conf'][i])
+                x, y, w, h = data['left'][i], data['top'][i], data['width'][i], data['height'][i]
+                
+                if level == 5 and text and conf > 60:  # 신뢰도 60% 이상만만
+                    cv2.putText(symbols_img, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                    
+            cv2.imwrite(str(debug_dir / "9_recognized_text.png"), symbols_img)
+            
         
         text = pytesseract.image_to_string(
-            enhanced, 
+            img, 
             lang=lang,
             config=config  # LSTM 모델 사용 및 단일 텍스트 블록으로 처리
         )
@@ -154,30 +158,32 @@ def perform_ocr(image_path, output_dir, lang='kor+eng', oem=2, psm=6):
         with open(output_txt_path, 'w', encoding='utf-8') as f:
             f.write(text)
         
-        # HTML 포맷?의 OCR 결과
-        hocr_output = Path(output_dir) / "ocr_result.html"
-        hocr_data = pytesseract.image_to_pdf_or_hocr(
-            enhanced, 
-            extension='hocr', 
-            lang=lang,
-            config=config  # LSTM 모델 사용
-        )
-        with open(hocr_output, 'wb') as f:
-            f.write(hocr_data)
+        if debug:
+            # HTML 포맷?의 OCR 결과
+            hocr_output = Path(output_dir) / "ocr_result.html"
+            hocr_data = pytesseract.image_to_pdf_or_hocr(
+                img, 
+                extension='hocr', 
+                lang=lang,
+                config=config  # LSTM 모델 사용
+            )
+            with open(hocr_output, 'wb') as f:
+                f.write(hocr_data)
             
-        print(f"OCR 저장 경로: {output_txt_path}")
-        print(f"OCR 디버깅 경로로: {debug_dir}")
+        print(f"ocr save path: {output_txt_path}")
+        print(f"ocr debug path: {debug_dir}")
         
         return text, debug_dir
         
     except Exception as e:
-        print(f"OCR 처리 중 오류 발생: {e}")
+        print(f"ocr error: {e}")
         return None, None
 
 def main(
     input="./input/image.png",  # 입력 이미지 파일 경로
     output="./output",  # 출력 디렉토리 경로
     name="result",  # 결과 폴더 이름
+    warp=True,  # 디워핑 처리 여부
     focal=1.2,  # 카메라의 정규화된 초점거리
     tw=15,  # 검출할 텍스트 윤곽선의 최소 폭 (축소된 픽셀 단위)
     th=2,  # 검출할 텍스트 윤곽선의 최소 높이 (축소된 픽셀 단위)
@@ -211,73 +217,100 @@ def main(
     output_name = name
     
     if not input_path.exists():
-        print(f"파일 못 찾음: {input_path}")
+        print(f"file not found: {input_path}")
         return 1
     
     output_dir.mkdir(exist_ok=True, parents=True)
     result_num = get_next_result_directory(output_dir=output_dir, output_name=output_name)
-    result_dir = output_dir / f"{output_name}{result_num}"
+    result_dir = output_dir / f"{output_name}_{result_num}"
     result_dir.mkdir(exist_ok=True)
     
     img = cv2.imread(str(input_path))
     if img is None:
-        print(f"이미지 못 찾음: {input_path}")
+        print(f"image not found: {input_path}")
         return 1
     
-    print(f"이미지 크기: {img.shape[1]}x{img.shape[0]}")
-    
-    config = Config()
-    config.FOCAL_LENGTH = focal  # 카메라의 정규화된 초점거리
+    print(f"image size: {img.shape[1]}x{img.shape[0]}")
+    if warp:
+        config = Config()
+        config.FOCAL_LENGTH = focal  # 카메라의 정규화된 초점거리
 
-    config.TEXT_MIN_WIDTH = tw  # 검출할 텍스트 윤곽선의 최소 폭 (축소된 픽셀 단위)
-    config.TEXT_MIN_HEIGHT = th  # 검출할 텍스트 윤곽선의 최소 높이 (축소된 픽셀 단위)
-    config.TEXT_MIN_ASPECT = ta  # 텍스트 윤곽선의 최소 가로세로 비율 (폭/높이)
-    config.TEXT_MAX_THICKNESS = tk  # 검출할 텍스트 윤곽선의 최대 두께 (축소된 픽셀 단위)
+        config.TEXT_MIN_WIDTH = tw  # 검출할 텍스트 윤곽선의 최소 폭 (축소된 픽셀 단위)
+        config.TEXT_MIN_HEIGHT = th  # 검출할 텍스트 윤곽선의 최소 높이 (축소된 픽셀 단위)
+        config.TEXT_MIN_ASPECT = ta  # 텍스트 윤곽선의 최소 가로세로 비율 (폭/높이)
+        config.TEXT_MAX_THICKNESS = tk  # 검출할 텍스트 윤곽선의 최대 두께 (축소된 픽셀 단위)
 
-    config.DEBUG_LEVEL = debug  # 디버그 레벨 0 ~ 3
-    config.DEBUG_OUTPUT = debug_out  # 디버그 출력 방식: "file", "screen", "both"
+        config.DEBUG_LEVEL = debug  # 디버그 레벨 0 ~ 3
+        config.DEBUG_OUTPUT = debug_out  # 디버그 출력 방식: "file", "screen", "both"
 
-    config.EDGE_MAX_OVERLAP = eo  # 스팬 내에서 윤곽선들의 최대 수평 겹침 (축소된 픽셀 단위)
-    config.EDGE_MAX_LENGTH = el  # 윤곽선들을 연결하는 에지의 최대 길이 (축소된 픽셀 단위)
-    config.EDGE_ANGLE_COST = ec  # 에지의 각도 변화에 대한 비용 (길이 대비 각도의 가중치)
-    config.EDGE_MAX_ANGLE = ea  # 윤곽선들 사이에서 허용되는 최대 각도 변화 (도 단위)
+        config.EDGE_MAX_OVERLAP = eo  # 스팬 내에서 윤곽선들의 최대 수평 겹침 (축소된 픽셀 단위)
+        config.EDGE_MAX_LENGTH = el  # 윤곽선들을 연결하는 에지의 최대 길이 (축소된 픽셀 단위)
+        config.EDGE_ANGLE_COST = ec  # 에지의 각도 변화에 대한 비용 (길이 대비 각도의 가중치)
+        config.EDGE_MAX_ANGLE = ea  # 윤곽선들 사이에서 허용되는 최대 각도 변화 (도 단위)
 
-    config.SCREEN_MAX_W = sw  # 화면 표시용 최대 폭 (픽셀)
-    config.SCREEN_MAX_H = sh  # 화면 표시용 최대 높이 (픽셀)
-    config.PAGE_MARGIN_X = mx  # 좌우 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
-    config.PAGE_MARGIN_Y = my  # 상하 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
+        config.SCREEN_MAX_W = sw  # 화면 표시용 최대 폭 (픽셀)
+        config.SCREEN_MAX_H = sh  # 화면 표시용 최대 높이 (픽셀)
+        config.PAGE_MARGIN_X = mx  # 좌우 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
+        config.PAGE_MARGIN_Y = my  # 상하 가장자리에서 무시할 픽셀 수 (축소된 이미지 기준)
 
-    config.ADAPTIVE_WINSZ = wz  # 적응형 임계값 처리에 사용할 윈도우 크기 (축소된 픽셀 단위)
+        config.ADAPTIVE_WINSZ = wz  # 적응형 임계값 처리에 사용할 윈도우 크기 (축소된 픽셀 단위)
 
-    config.OUTPUT_ZOOM = zoom  # 원본 이미지 대비 출력 이미지의 확대율
-    config.OUTPUT_DPI = dpi  # PNG 파일의 명시적 DPI 값 (메타데이터만)
-    config.REMAP_DECIMATE = decimate  # 이미지 리매핑 시 다운스케일링 인수
-    config.NO_BINARY = no_bin  # True: 그레이스케일 유지, False: 이진화 수행
+        config.OUTPUT_ZOOM = zoom  # 원본 이미지 대비 출력 이미지의 확대율
+        config.OUTPUT_DPI = dpi  # PNG 파일의 명시적 DPI 값 (메타데이터만)
+        config.REMAP_DECIMATE = decimate  # 이미지 리매핑 시 다운스케일링 인수
+        config.NO_BINARY = no_bin  # True: 그레이스케일 유지, False: 이진화 수행
 
-    config.CONVERT_TO_PDF = pdf  # 처리된 이미지들을 PDF로 병합 여부 (미구현)
+        config.CONVERT_TO_PDF = pdf  # 처리된 이미지들을 PDF로 병합 여부 (미구현)
 
-    config.RVEC_IDX = rv_idx  # 매개변수 벡터에서 회전 벡터(rvec)의 인덱스 범위
-    config.TVEC_IDX = tv_idx  # 매개변수 벡터에서 이동 벡터(tvec)의 인덱스 범위
-    config.CUBIC_IDX = cv_idx  # 매개변수 벡터에서 큐빅 기울기의 인덱스 범위
+        config.RVEC_IDX = rv_idx  # 매개변수 벡터에서 회전 벡터(rvec)의 인덱스 범위
+        config.TVEC_IDX = tv_idx  # 매개변수 벡터에서 이동 벡터(tvec)의 인덱스 범위
+        config.CUBIC_IDX = cv_idx  # 매개변수 벡터에서 큐빅 기울기의 인덱스 범위
 
-    config.SPAN_MIN_WIDTH = span_w  # 스팬의 최소 폭 (축소된 픽셀 단위)
-    config.SPAN_PX_PER_STEP = span_step  # 스팬을 따라 샘플링할 때의 픽셀 간격 (축소된 픽셀 단위)
+        config.SPAN_MIN_WIDTH = span_w  # 스팬의 최소 폭 (축소된 픽셀 단위)
+        config.SPAN_PX_PER_STEP = span_step  # 스팬을 따라 샘플링할 때의 픽셀 간격 (축소된 픽셀 단위)
 
     
     original_cwd = os.getcwd()
     os.chdir(result_dir)
     
-    warped_img = WarpedImage(str(input_path), config=config)
-    
-    if warped_img.written:        
-        input_copy_path = result_dir / f"원본_{input_path.name}"
-        shutil.copy2(input_path, input_copy_path)
+    if warp:
+        img = WarpedImage(str(input_path), config=config)
+        
+        if img.written:        
+            input_copy_path = result_dir / f"original_{input_path.name}"
+            
+            if debug:
+                shutil.copy2(input_path, input_copy_path)
+            
+            # OCR 적용
+            result_img_path = result_dir / img.outfile
+            ocr_text, debug_dir = perform_ocr(result_img_path, result_dir, debug=debug)
+
+            result = cv2.imread(str(img.outfile))
+            
+            window_name = f"result"
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            cv2.imshow(window_name, result)
+            
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+        else:
+            print("warp error: text or line not detected")
+    else:
+        # warp가 False인 경우 직접 원본 이미지 처리
+        input_copy_path = result_dir / f"original_{input_path.name}"
+        output_img_path = result_dir / input_path.name
+        
+        if debug:
+            shutil.copy2(input_path, input_copy_path)
+        
+        # 원본 이미지 복사
+        shutil.copy2(input_path, output_img_path)
         
         # OCR 적용
-        result_img_path = result_dir / warped_img.outfile
-        ocr_text, debug_dir = perform_ocr(result_img_path, result_dir)
-
-        result = cv2.imread(str(warped_img.outfile))
+        ocr_text, debug_dir = perform_ocr(output_img_path, result_dir, debug=debug)
+        
+        result = cv2.imread(str(output_img_path))
         
         window_name = f"result"
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
@@ -285,12 +318,10 @@ def main(
         
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-    else:
-        print("디워핑 처리가 실패. 텍스트 또는 라인이 충분히 감지되지 않음.")
         
     os.chdir(original_cwd)
     
-    print(f"처리 완료")
+    print(f"process complete")
     return 0
 
 def parse_args():
@@ -307,7 +338,7 @@ def parse_args():
     parser.add_argument("--ta", type=float, default=1.5, help="text_min_aspect: 텍스트 최소 가로세로 비율")
     parser.add_argument("--tk", type=int, default=10, help="text_max_thickness: 텍스트 최대 두께 (픽셀)")
 
-    parser.add_argument("--debug", "-d", type=int, default=3, choices=[0, 1, 2, 3], help="debug_level: 디버그 레벨 (0=없음, 1=기본, 2=중간, 3=상세)")
+    parser.add_argument("--debug", "-d", type=int, default=0, choices=[0, 1, 2, 3], help="debug_level: 디버그 레벨 (0=없음, 1=기본, 2=중간, 3=상세)")
     parser.add_argument("--debug-out", type=str, default="both", choices=["file", "screen", "both"], help="debug_output: 디버그 출력 방식")
 
     parser.add_argument("--eo", type=float, default=1.0, help="edge_max_overlap: 윤곽선 최대 수평 겹침 (픽셀)")
