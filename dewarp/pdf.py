@@ -4,7 +4,7 @@ Currently, we only print instructions for using ImageMagick,
 as PDF merging is not yet fully implemented.
 """
 
-__all__ = ["save_pdf"]
+#__all__ = ["save_pdf"]
 
 
 def save_pdf(outfiles: list[str]) -> None:

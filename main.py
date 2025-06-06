@@ -179,6 +179,79 @@ def perform_ocr(image_path, output_dir, lang='kor+eng', oem=1, psm=3, debug=Fals
         print(f"ocr error: {e}")
         return None, None
 
+def process_single_image(
+    input_path,
+    output_dir,
+    output_name,
+    warp=True,
+    config=None,
+    debug=False
+):
+    result_num = get_next_result_directory(output_dir=output_dir, output_name=output_name)
+    result_dir = output_dir / f"{output_name}_{result_num}"
+    result_dir.mkdir(exist_ok=True)
+    
+    img = cv2.imread(str(input_path))
+    if img is None:
+        print(f"image not found: {input_path}")
+        return 1
+    
+    print(f"Processing image: {input_path}")
+    print(f"image size: {img.shape[1]}x{img.shape[0]}")
+    
+    original_cwd = os.getcwd()
+    os.chdir(result_dir)
+    
+    if warp:
+        img = WarpedImage(str(input_path), config=config)
+        
+        if img.written:        
+            input_copy_path = result_dir / f"original_{input_path.name}"
+            
+            if debug:
+                shutil.copy2(input_path, input_copy_path)
+            
+            # OCR 적용
+            result_img_path = result_dir / img.outfile
+            ocr_text, debug_dir = perform_ocr(result_img_path, result_dir, debug=debug)
+
+            result = cv2.imread(str(img.outfile))
+            
+            # window_name = f"result - {input_path.name}"
+            # cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            # cv2.imshow(window_name, result)
+            
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
+        else:
+            print(f"warp error: text or line not detected in {input_path.name}")
+    else:
+        # warp가 False인 경우 직접 원본 이미지 처리
+        input_copy_path = result_dir / f"original_{input_path.name}"
+        output_img_path = result_dir / input_path.name
+        
+        if debug:
+            shutil.copy2(input_path, input_copy_path)
+        
+        # 원본 이미지 복사
+        shutil.copy2(input_path, output_img_path)
+        
+        # OCR 적용
+        ocr_text, debug_dir = perform_ocr(output_img_path, result_dir, debug=debug)
+        
+        result = cv2.imread(str(output_img_path))
+        
+        window_name = f"result - {input_path.name}"
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        cv2.imshow(window_name, result)
+        
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        
+    os.chdir(original_cwd)
+    print(f"Completed processing: {input_path.name}")
+    return 0
+
 def main(
     input="./input/image.png",  # 입력 이미지 파일 경로
     output="./output",  # 출력 디렉토리 경로
@@ -211,26 +284,21 @@ def main(
     span_w=30,  # 스팬의 최소 폭 (축소된 픽셀 단위)
     span_step=20,  # 스팬을 따라 샘플링할 때의 픽셀 간격 (축소된 픽셀 단위)
 ):    
-        
+    # 입력 및 출력 경로 설정
     input_path = Path(input).resolve()
     output_dir = Path(output).resolve()
     output_name = name
     
-    if not input_path.exists():
-        print(f"file not found: {input_path}")
-        return 1
-    
+    # 출력 디렉토리 생성
     output_dir.mkdir(exist_ok=True, parents=True)
-    result_num = get_next_result_directory(output_dir=output_dir, output_name=output_name)
-    result_dir = output_dir / f"{output_name}_{result_num}"
-    result_dir.mkdir(exist_ok=True)
     
-    img = cv2.imread(str(input_path))
-    if img is None:
-        print(f"image not found: {input_path}")
+    # 입력 경로가 존재하는지 확인
+    if not input_path.exists():
+        print(f"Path not found: {input_path}")
         return 1
     
-    print(f"image size: {img.shape[1]}x{img.shape[0]}")
+    # 설정 초기화 (warp가 True인 경우에만 필요)
+    config = None
     if warp:
         config = Config()
         config.FOCAL_LENGTH = focal  # 카메라의 정규화된 초점거리
@@ -268,66 +336,55 @@ def main(
 
         config.SPAN_MIN_WIDTH = span_w  # 스팬의 최소 폭 (축소된 픽셀 단위)
         config.SPAN_PX_PER_STEP = span_step  # 스팬을 따라 샘플링할 때의 픽셀 간격 (축소된 픽셀 단위)
-
     
-    original_cwd = os.getcwd()
-    os.chdir(result_dir)
+    # 이미지 파일 확장자 목록
+    image_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp']
     
-    if warp:
-        img = WarpedImage(str(input_path), config=config)
+    # 디렉토리인 경우 모든 이미지 파일 처리
+    if input_path.is_dir():
+        print(f"Processing all images in directory: {input_path}")
+        image_files = []
         
-        if img.written:        
-            input_copy_path = result_dir / f"original_{input_path.name}"
-            
-            if debug:
-                shutil.copy2(input_path, input_copy_path)
-            
-            # OCR 적용
-            result_img_path = result_dir / img.outfile
-            ocr_text, debug_dir = perform_ocr(result_img_path, result_dir, debug=debug)
-
-            result = cv2.imread(str(img.outfile))
-            
-            window_name = f"result"
-            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-            cv2.imshow(window_name, result)
-            
-            cv2.waitKey(0)
-            cv2.destroyAllWindows()
-        else:
-            print("warp error: text or line not detected")
+        # 디렉토리 내 모든 파일 검색
+        for ext in image_extensions:
+            image_files.extend(list(input_path.glob(f"*{ext}")))
+            image_files.extend(list(input_path.glob(f"*{ext.upper()}")))
+        
+        if not image_files:
+            print(f"No image files found in directory: {input_path}")
+            return 1
+        
+        print(f"Found {len(image_files)} image files")
+        
+        # 각 이미지 파일 처리
+        for img_file in image_files:
+            process_single_image(
+                input_path=img_file,
+                output_dir=output_dir,
+                output_name=f"{output_name}_{img_file.stem}",
+                warp=warp,
+                config=config,
+                debug=debug
+            )
+        
+        print(f"All images processed successfully")
+        return 0
+    
+    # 단일 파일인 경우 처리
     else:
-        # warp가 False인 경우 직접 원본 이미지 처리
-        input_copy_path = result_dir / f"original_{input_path.name}"
-        output_img_path = result_dir / input_path.name
-        
-        if debug:
-            shutil.copy2(input_path, input_copy_path)
-        
-        # 원본 이미지 복사
-        shutil.copy2(input_path, output_img_path)
-        
-        # OCR 적용
-        ocr_text, debug_dir = perform_ocr(output_img_path, result_dir, debug=debug)
-        
-        result = cv2.imread(str(output_img_path))
-        
-        window_name = f"result"
-        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-        cv2.imshow(window_name, result)
-        
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        
-    os.chdir(original_cwd)
-    
-    print(f"process complete")
-    return 0
+        return process_single_image(
+            input_path=input_path,
+            output_dir=output_dir,
+            output_name=output_name,
+            warp=warp,
+            config=config,
+            debug=debug
+        )
 
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--input", "-i", type=str, default="./input/test1.jpg", help="input: 입력 이미지 파일 경로")
+    parser.add_argument("--input", "-i", type=str, default="./input/test_dir", help="input: 입력 이미지 파일 경로")
     parser.add_argument("--output", "-o", type=str, default="./output", help="output: 출력 디렉토리")
     parser.add_argument("--name", "-n", type=str, default="result", help="name: 결과 폴더명 접두사")
     
